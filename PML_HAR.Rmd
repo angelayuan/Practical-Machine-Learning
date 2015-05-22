@@ -1,0 +1,89 @@
+Predicting the manner in which people did exercise
+===================================================
+author: **angelayuan**  
+date: **Thursday, May 21, 2015**
+
+## Synopsis
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. In this project, our goal is to predict the manner in which people did exercise. Training data and Test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv and https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv 
+
+These data was collected from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways, including class A (exactly according to the specification), class B (throwing the elbows to the front), class C (lifting the dumbbell only halfway), class D (lowering the dumbbell only halfway), and class E (throwing the hips to the front)
+
+## Exploratory data analysis
+First, we load in the training data and test data, and check a few lines of training data (do not print the table of first six lines because of the limitation of space).
+
+```{r cache=TRUE}
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+dim(training)
+```
+We can see that there are 160 variables in total. 159 of them are candidate predictors and 1 of them is outcome (i.e. classe).
+
+## Data Preprocessing
+From above checking, we know that there are variables with NAs values and/or missing values, indicating that we need to conduct data preprocessing.  
+
+First, we delete variables with NAs values for both training data and test data.
+```{r}
+training <- training[, colSums(is.na(training)) == 0] 
+testing <- testing[, colSums(is.na(testing)) == 0] 
+```
+
+Second, we load in caret package and then we delete variables with near zero variance which barely contribute to models.
+```{r}
+library(caret)
+nzv_train <- nearZeroVar(training)
+training <- training[,-nzv_train]
+nzv_test <- nearZeroVar(testing)
+testing <- testing[,-nzv_test]
+```
+
+Third, the first six variables are just user names and time stamping which barely contribute to models. Therefore we delete the first six variables.
+```{r}
+training <- training[,-c(1:6)]
+testing <- testing[,-c(1:6)]
+dim(training)
+```
+
+## Fitting Random Forest Model
+After data preprocessing, we have 53 variables to build models. Here we select random forest model with classe as outcome and other variables as predictor. 
+
+First, load in randomForest package.
+```{r}
+library(randomForest)
+```
+
+Second, split training data into training dataset and cross validation dataset.
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+training_set <- training[inTrain,]
+cv_set <- training[-inTrain,]
+```
+
+Third, build random forest model using training set.
+```{r cache=TRUE}
+rf_fit <- randomForest(classe ~., data=training_set)
+```
+
+## Accuracy check on both training dataset and cross validation dataset (out of sample error)
+```{r}
+training_pred <- predict(rf_fit, newdata=training_set)
+confusionMatrix(training_pred, training_set$classe)
+```
+From above results, we see that the prediction accuracy is perfect (100%) and the sensitivity, specificity etc. are perfect as well. The error rate is 0.0% which is really low.
+
+Next, we will test prediction accuracy on cross validation dataset. The model is fitted based on training dataset, therefore it typically has a lower error rate than the out of sample error. We expect the out of sample error is larger than 0.0%.
+```{r}
+cv_pred <- predict(rf_fit, newdata=cv_set)
+confusionMatrix(cv_pred, cv_set$classe)
+```
+From above results, we see that the prediction accuracy on cross validation dataset is pretty high (99.58%), indicating the out of sample error is really low (0.42%). And it also shows a high sensitivity, specificity etc., indicating the model seems perfect.
+
+## Applying random forest model to testing data
+Finally, we apply the above model to test data to predict the manner in which people exercise.
+```{r}
+test_pred <- predict(rf_fit, newdata=testing)
+test_pred
+```
+
+## Reference
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
+
